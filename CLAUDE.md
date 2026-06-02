@@ -1,117 +1,162 @@
 # World Cup Fantasy — CLAUDE.md
 
-> Leia este arquivo inteiro antes de qualquer implementação.
+> Read this file entirely before any implementation.
 
-## Projeto
+## Project
 
-World Cup Fantasy é um fantasy game da Copa do Mundo estilo Cartola FC.
-Monorepo pnpm workspaces com backend NestJS e frontend Next.js 14.
+World Cup Fantasy is a World Cup fantasy game in the style of Cartola FC.
+pnpm workspaces monorepo with a NestJS backend and Next.js 14 frontend.
 
 ## Stack
 
 ### Backend (`apps/api`)
+
 - **Framework:** NestJS 10
 - **ORM:** Prisma
-- **Banco de dados:** PostgreSQL 16
-- **Cache / Filas:** Redis 7 + BullMQ
+- **Database:** PostgreSQL 16
+- **Cache / Queues:** Redis 7 + BullMQ
 - **Realtime:** Socket.IO
-- **Auth:** JWT (access + refresh tokens)
+- **Auth:** JWT (access 15min + refresh 7d)
 - **Docs:** Swagger (OpenAPI)
 
 ### Frontend (`apps/web`)
+
 - **Framework:** Next.js 14 (App Router)
-- **Estilização:** Tailwind CSS + shadcn/ui
-- **Estado global:** Zustand
-- **Dados assíncronos:** TanStack Query
+- **Styling:** Tailwind CSS + shadcn/ui
+- **Global state:** Zustand
+- **Async data:** TanStack Query
 - **Realtime:** Socket.IO client
 
-### Compartilhado (`packages/shared`)
-- Tipos TypeScript utilizados por `api` e `web`
+### Shared (`packages/shared`)
 
-## Estrutura
+- TypeScript types used by both `api` and `web`
+
+## Structure
 
     apps/
-      api/    → backend NestJS
-      web/    → frontend Next.js
+      api/    → NestJS backend
+      web/    → Next.js frontend
     packages/
-      shared/ → tipos TypeScript compartilhados
+      shared/ → shared TypeScript types
 
-## Módulos do backend
+## Backend Modules
 
-| Módulo       | Responsabilidade                                    |
-|--------------|-----------------------------------------------------|
-| `auth`       | Login, registro, refresh token, guards JWT          |
-| `users`      | Perfil, configurações de usuário                    |
-| `leagues`    | Criação e gestão de ligas                           |
-| `draft`      | Sala de draft ao vivo, timer, picks em tempo real   |
-| `players`    | Catálogo de jogadores, stats da Copa                |
-| `matches`    | Partidas da Copa, agenda, resultados                |
-| `scoring`    | Cálculo de pontuação em tempo real via BullMQ       |
-| `trades`     | Trocas de jogadores entre participantes             |
-| `standings`  | Classificação das ligas                             |
+| Module      | Responsibility                                    |
+| ----------- | ------------------------------------------------- |
+| `auth`      | Login, register, refresh token, JWT guards        |
+| `users`     | User profile and settings                         |
+| `leagues`   | League creation and management                    |
+| `draft`     | Live draft room, countdown timer, real-time picks |
+| `players`   | Player catalog, World Cup stats                   |
+| `matches`   | World Cup fixtures, schedule, results             |
+| `scoring`   | Real-time score calculation via BullMQ            |
+| `trades`    | Player trades between participants                |
+| `standings` | League standings and rankings                     |
 
-## Padrões de código
+## Code Standards
 
-- TypeScript `strict: true` em todos os apps
-- Conventional Commits obrigatórios (commitlint + husky)
+- TypeScript `strict: true` on all apps
+- Conventional Commits enforced (commitlint + husky)
 - GitFlow: `feat/*`, `fix/*`, `release/*`, `hotfix/*`
-- Testes unitários obrigatórios em todo módulo novo (Jest)
-- Swagger atualizado em todo endpoint novo ou alterado
-- **Nunca commitar `.env`** — usar apenas `.env.example`
-- Sem `console.log` em código de produção
-- Sem `any` explícito no TypeScript
+- Unit tests required for every new module (Jest)
+- Swagger updated on every new or modified endpoint
+- **Never commit `.env`** — use only `.env.example`
+- No `console.log` in production code
+- No explicit `any` in TypeScript
 
-## Design — Leia antes de qualquer trabalho de frontend
+## Design — Read before any frontend work
 
-**Aplique AMBAS as skills antes de qualquer componente ou página:**
+**Load BOTH skills before any component or page:**
 
 1. `.claude/skills/ui-ux-pro-max/SKILL.md`
 2. `.claude/skills/frontend-design.md`
 
-### Direção estética
+### Aesthetic Direction
 
-**Dark premium esportivo.**
-Referências visuais: Sorare, ESPN Fantasy, FIFA+.
+**Dark premium sports.**
+Visual references: Sorare, ESPN Fantasy, FIFA+.
 
-**Elemento central e inesquecível:**
-Sala de draft ao vivo com timer animado e picks em tempo real.
+**Central unforgettable feature:**
+Live draft room with animated countdown timer and real-time picks.
 
-### Restrições absolutas (nunca fazer)
+### Hard Rules (never break)
 
-- Nunca usar Inter, Roboto ou fontes genéricas similares
-- Nunca usar purple gradients
-- Nunca usar layouts simétricos genéricos
-- Nunca usar componentes shadcn sem customização visual própria
-- Nunca gerar layouts que pareçam templates de IA
+- Never use Inter, Roboto, or generic system fonts
+- Never use purple gradients
+- Never use generic symmetric layouts
+- Never use shadcn components without custom visual overrides
+- Never produce layouts that look AI-generated or template-like
 
-### Diretrizes de estilo
+### Style Guidelines
 
-- Tipografia expressiva: fontes esportivas (Bebas Neue, Oswald, Barlow Condensed)
-- Cores: dark base `#0A0A0F`, accents vibrantes em amber, emerald ou sky — nunca purple
-- Micro-animações em interações críticas (picks, pontuação, timer de draft)
-- Mobile-first em todos os componentes
-- Assimetria intencional: grids que quebram a simetria, hierarquia visual forte
+- Expressive typography: sports fonts (Bebas Neue, Oswald, Barlow Condensed)
+- Color base: `#0A0A0F` dark, vibrant accents in amber, emerald, or sky — never purple
+- Micro-animations on critical interactions (picks, score updates, draft timer)
+- Mobile-first on every component
+- Intentional asymmetry: grids that break symmetry, strong visual hierarchy
 
-## Variáveis de ambiente
+## Engineering Mindset
 
-Ver `.env.example` na raiz. Nunca hardcodar secrets no código.
+You are a senior software engineer reviewing this application. Be critical — challenge
+suboptimal decisions rather than agreeing with existing choices by default.
 
-## Comandos úteis
+### Domain Priorities
 
-    # Instalar todas as dependências
+This is a **competitive fantasy game** tied to live World Cup data. Correctness and
+fairness are non-negotiable:
+
+- **Scoring correctness** — a wrong point calculation affects every user in every league
+- **Real-time data consistency** — match events arrive out-of-order; scoring must be idempotent
+- **Race conditions** — concurrent point recalculations must not produce duplicate or missing scores
+- **Fairness** — leaderboard positions must reflect the same data snapshot for all users
+
+### Critical Edge Cases (always reason through these)
+
+| Scenario                              | Risk                                                          |
+| ------------------------------------- | ------------------------------------------------------------- |
+| Match canceled after kick-off         | Points already awarded must be rolled back                    |
+| Player substituted in/out             | Eligibility window affects fantasy score                      |
+| Own goal                              | Attribution differs from regular goal; scoring rules may vary |
+| API data arriving late or duplicated  | Idempotency key required on every score event                 |
+| Leaderboard read during recalculation | Dirty read; use Redis snapshot or versioned cache             |
+| Draft pick during connectivity loss   | Pick must be atomic; timer expiry needs server authority      |
+
+### Before Making Any Change
+
+1. **Map the affected surface** — identify every module, queue, and cache layer touched
+2. **Deliver a structured diagnosis** covering: architecture, code quality, security, test coverage
+3. **Propose significant changes before applying them** — one-liners are fine to apply directly;
+   anything touching scoring, auth, or data sync requires explicit approval first
+
+### Data Sync & Caching Rules
+
+- Match and player data from the external API must be treated as **eventually consistent**
+- Never serve leaderboard data directly from the database under load — always through a cache layer
+- Score recalculation jobs (BullMQ) must be **idempotent**: re-running the same job must produce
+  the same result
+- Cache invalidation must be **intentional and documented** — silent stale data is the most common
+  source of fairness bugs in fantasy games
+
+## Environment Variables
+
+See `.env.example` at the root. Never hardcode secrets.
+
+## Useful Commands
+
+    # Install all dependencies
     pnpm install
 
-    # Rodar lint em todos os workspaces
+    # Lint all workspaces
     pnpm lint
 
-    # Formatar todo o código
+    # Type check all workspaces
+    pnpm typecheck
+
+    # Format all code
     pnpm format
 
-    # Rodar todos os testes
+    # Run all tests
     pnpm test
 
-    # Subir infraestrutura local
+    # Start local infrastructure
     docker compose up -d
-
-    # Derrubar infra
-    docker compose down

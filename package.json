@@ -11,6 +11,7 @@
     "lint": "pnpm -r --if-present lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck",
     "prepare": "husky"
   },
   "devDependencies": {
