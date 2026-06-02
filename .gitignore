@@ -1,0 +1,57 @@
+# ─── Node ────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# ─── Build ───────────────────────────────────────────────
+dist/
+build/
+.turbo/
+
+# ─── Next.js ─────────────────────────────────────────────
+apps/web/.next/
+apps/web/out/
+
+# ─── NestJS ──────────────────────────────────────────────
+apps/api/dist/
+
+# ─── Environment (corrigido: captura .env.production, .env.test, etc.) ───
+.env*
+!.env.example
+
+# ─── TypeScript ──────────────────────────────────────────
+*.tsbuildinfo
+
+# ─── Tests ───────────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ─── Editor ──────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ─── OS ──────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Docker ──────────────────────────────────────────────
+.docker/
+
+# ─── Claude Code (configurações locais, não as skills) ───
+.claude/settings.local.json
+
+# ─── Logs ────────────────────────────────────────────────
+logs/
+*.log
+
+# ─── Python (scripts das skills Claude) ──────────────────
+__pycache__/
+*.pyc
+*.pyo
