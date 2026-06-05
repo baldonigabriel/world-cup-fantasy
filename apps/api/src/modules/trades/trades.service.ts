@@ -206,28 +206,14 @@ export class TradesService {
           );
       }
 
-      // Atomic swap: delete both, then re-create with swapped rosters
-      await tx.rosterPlayer.delete({
+      // Atomic swap: update rosterId directly — avoids transitional constraint violations
+      await tx.rosterPlayer.update({
         where: { leagueId_playerId: { leagueId, playerId: offeredItem.playerId } },
+        data: { rosterId: trade.receiverRosterId },
       });
-      await tx.rosterPlayer.delete({
+      await tx.rosterPlayer.update({
         where: { leagueId_playerId: { leagueId, playerId: requestedItem.playerId } },
-      });
-      await tx.rosterPlayer.create({
-        data: {
-          rosterId: trade.receiverRosterId,
-          playerId: offeredItem.playerId,
-          leagueId,
-          countryId: cx,
-        },
-      });
-      await tx.rosterPlayer.create({
-        data: {
-          rosterId: trade.proposerRosterId,
-          playerId: requestedItem.playerId,
-          leagueId,
-          countryId: cy,
-        },
+        data: { rosterId: trade.proposerRosterId },
       });
 
       return tx.trade.update({

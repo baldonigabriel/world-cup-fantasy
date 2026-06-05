@@ -102,6 +102,7 @@ const mockPrisma = {
   rosterPlayer: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
+    update: jest.fn(),
     delete: jest.fn(),
     create: jest.fn(),
   },
@@ -339,9 +340,8 @@ describe('TradesService', () => {
 
     it('swaps players and marks trade ACCEPTED on success', async () => {
       setupAccept();
-      const deleteMock = jest.fn().mockResolvedValue({});
-      const createMock = jest.fn().mockResolvedValue({});
-      const updateMock = jest.fn().mockResolvedValue({
+      const rpUpdateMock = jest.fn().mockResolvedValue({});
+      const tradeUpdateMock = jest.fn().mockResolvedValue({
         ...pendingTrade,
         status: TradeStatus.ACCEPTED,
         items: pendingTrade.items,
@@ -357,11 +357,10 @@ describe('TradesService', () => {
                 .fn()
                 .mockResolvedValueOnce(rpProposer)
                 .mockResolvedValueOnce(rpReceiver),
-              findFirst: jest.fn().mockResolvedValue(null), // no country conflicts
-              delete: deleteMock,
-              create: createMock,
+              findFirst: jest.fn().mockResolvedValue(null),
+              update: rpUpdateMock,
             },
-            trade: { ...mockPrisma.trade, update: updateMock },
+            trade: { ...mockPrisma.trade, update: tradeUpdateMock },
           };
           return cb(tx);
         },
@@ -373,8 +372,7 @@ describe('TradesService', () => {
 
       const result = await service.acceptTrade(tradeId, userId);
 
-      expect(deleteMock).toHaveBeenCalledTimes(2);
-      expect(createMock).toHaveBeenCalledTimes(2);
+      expect(rpUpdateMock).toHaveBeenCalledTimes(2);
       expect(result.status).toBe(TradeStatus.ACCEPTED);
     });
   });
