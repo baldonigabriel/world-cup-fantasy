@@ -24,6 +24,11 @@ export default function LeagueLobbyPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['league', id] }),
   });
 
+  const startMutation = useMutation({
+    mutationFn: () => api.post(`/leagues/${id}/draft/start`, {}, accessToken ?? undefined),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['league', id] }),
+  });
+
   if (isLoading) {
     return <p className="text-text-secondary">Carregando...</p>;
   }
@@ -31,7 +36,6 @@ export default function LeagueLobbyPage() {
   if (!league) return null;
 
   const isOwner = league.ownerId === user?.id;
-  const draftReady = league.draftStatus === null || league.draftStatus === DraftStatus.PENDING;
   const draftStarted = league.draftStatus === DraftStatus.IN_PROGRESS;
   const draftDone = league.draftStatus === DraftStatus.COMPLETED;
 
@@ -59,13 +63,23 @@ export default function LeagueLobbyPage() {
             </Link>
           )}
 
-          {isOwner && draftReady && (
+          {isOwner && !league.draftStatus && (
             <button
               onClick={() => drawMutation.mutate()}
               disabled={drawMutation.isPending || league.memberCount < 2}
-              className="rounded border border-amber-500 px-5 py-2 font-body text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-500 hover:text-background disabled:opacity-50"
+              className="rounded border border-border px-5 py-2 font-body text-sm font-semibold text-text-secondary transition-colors hover:border-amber-500 hover:text-amber-400 disabled:opacity-50"
             >
               {drawMutation.isPending ? 'Sorteando...' : 'Sortear ordem'}
+            </button>
+          )}
+
+          {isOwner && league.draftStatus === DraftStatus.PENDING && (
+            <button
+              onClick={() => startMutation.mutate()}
+              disabled={startMutation.isPending}
+              className="rounded bg-amber-500 px-5 py-2 font-body text-sm font-semibold text-background transition-colors hover:bg-amber-400 disabled:opacity-50"
+            >
+              {startMutation.isPending ? 'Iniciando...' : '▶ Iniciar Draft'}
             </button>
           )}
         </div>
