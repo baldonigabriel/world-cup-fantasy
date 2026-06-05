@@ -144,6 +144,33 @@ export interface TradeItemDto {
   player: PlayerDto;
 }
 
+// ─── Fixture payload (normalised API-Football data stored in FixtureFacts.payload) ──
+
+export interface FixturePlayerStats {
+  externalId: number; // matches Player.externalId
+  minutesPlayed: number;
+  rating: number | null; // 0–10, null when not provided
+  goals: number;
+  assists: number;
+  yellowCards: number;
+  redCards: number;
+  ownGoals: number;
+  penaltiesMissed: number;
+  penaltiesSaved: number;
+  saves: number;
+}
+
+export interface FixtureTeamStats {
+  countryCode: string; // matches Country.code
+  goalsConceded: number; // goals received by this team in the match
+  players: FixturePlayerStats[];
+}
+
+export interface FixturePayload {
+  homeTeam: FixtureTeamStats;
+  awayTeam: FixtureTeamStats;
+}
+
 // ─── API response envelope ────────────────────────────────────────────────────
 
 export interface ApiResponse<T> {
