@@ -6,6 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { Position, TradeStatus } from '@wcf/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTradeWindowDto } from './dto/create-trade-window.dto';
@@ -321,52 +322,62 @@ export class TradesService {
     const membership = await this.assertMember(leagueId, userId);
     const rosterId = membership.roster!.id;
 
-    const signPlayer = await this.prisma.player.findUnique({
-      where: { id: dto.signPlayerId },
-      include: { country: true },
-    });
-    if (!signPlayer) throw new NotFoundException('player not found');
+    try {
+      await this.prisma.$transaction(
+        async (tx) => {
+          const signPlayer = await tx.player.findUnique({
+            where: { id: dto.signPlayerId },
+            include: { country: true },
+          });
+          if (!signPlayer) throw new NotFoundException('player not found');
 
-    const isFreeAgent = !(await this.prisma.rosterPlayer.findUnique({
-      where: { leagueId_playerId: { leagueId, playerId: dto.signPlayerId } },
-    }));
-    if (!isFreeAgent) throw new ConflictException('player is not a free agent in this league');
+          const existingRp = await tx.rosterPlayer.findUnique({
+            where: { leagueId_playerId: { leagueId, playerId: dto.signPlayerId } },
+          });
+          if (existingRp) throw new ConflictException('player is not a free agent in this league');
 
-    const releaseRp = await this.prisma.rosterPlayer.findUnique({
-      where: { leagueId_playerId: { leagueId, playerId: dto.releasePlayerId } },
-      include: { player: { select: { position: true } } },
-    });
-    if (!releaseRp || releaseRp.rosterId !== rosterId) {
-      throw new ForbiddenException('released player is not in your roster');
-    }
+          const releaseRp = await tx.rosterPlayer.findUnique({
+            where: { leagueId_playerId: { leagueId, playerId: dto.releasePlayerId } },
+            include: { player: { select: { position: true } } },
+          });
+          if (!releaseRp || releaseRp.rosterId !== rosterId) {
+            throw new ForbiddenException('released player is not in your roster');
+          }
 
-    if (signPlayer.position !== releaseRp.player.position) {
-      throw new ConflictException('signed and released players must share the same position');
-    }
+          if (signPlayer.position !== releaseRp.player.position) {
+            throw new ConflictException('signed and released players must share the same position');
+          }
 
-    // Country conflict: roster must not already have signPlayer's country (excluding released player)
-    const hasCountry = await this.prisma.rosterPlayer.findFirst({
-      where: {
-        rosterId,
-        countryId: signPlayer.countryId,
-        playerId: { not: dto.releasePlayerId },
-      },
-    });
-    if (hasCountry) throw new ConflictException('your team already has a player from that country');
+          const hasCountry = await tx.rosterPlayer.findFirst({
+            where: {
+              rosterId,
+              countryId: signPlayer.countryId,
+              playerId: { not: dto.releasePlayerId },
+            },
+          });
+          if (hasCountry)
+            throw new ConflictException('your team already has a player from that country');
 
-    await this.prisma.$transaction([
-      this.prisma.rosterPlayer.delete({
-        where: { leagueId_playerId: { leagueId, playerId: dto.releasePlayerId } },
-      }),
-      this.prisma.rosterPlayer.create({
-        data: {
-          rosterId,
-          playerId: dto.signPlayerId,
-          leagueId,
-          countryId: signPlayer.countryId,
+          await tx.rosterPlayer.delete({
+            where: { leagueId_playerId: { leagueId, playerId: dto.releasePlayerId } },
+          });
+          await tx.rosterPlayer.create({
+            data: {
+              rosterId,
+              playerId: dto.signPlayerId,
+              leagueId,
+              countryId: signPlayer.countryId,
+            },
+          });
         },
-      }),
-    ]);
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (e) {
+      if ((e as { code?: string })?.code === 'P2002') {
+        throw new ConflictException('free agent already signed by another team');
+      }
+      throw e;
+    }
 
     this.logger.log(
       `Signing: roster ${rosterId} signed ${dto.signPlayerId}, released ${dto.releasePlayerId}`,

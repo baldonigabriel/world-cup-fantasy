@@ -341,13 +341,11 @@ describe('TradesService', () => {
       setupAccept();
       const deleteMock = jest.fn().mockResolvedValue({});
       const createMock = jest.fn().mockResolvedValue({});
-      const updateMock = jest
-        .fn()
-        .mockResolvedValue({
-          ...pendingTrade,
-          status: TradeStatus.ACCEPTED,
-          items: pendingTrade.items,
-        });
+      const updateMock = jest.fn().mockResolvedValue({
+        ...pendingTrade,
+        status: TradeStatus.ACCEPTED,
+        items: pendingTrade.items,
+      });
 
       mockPrisma.$transaction.mockImplementation(
         async (cb: (tx: typeof mockPrisma) => Promise<unknown>) => {
@@ -460,15 +458,29 @@ describe('TradesService', () => {
       player: { position: 'GOL' },
     };
 
-    const setupSign = () => {
-      mockPrisma.tradeWindow.findFirst.mockResolvedValue(activeWindow);
-      mockPrisma.membership.findUnique.mockResolvedValue(membershipProposer);
-      mockPrisma.player.findUnique.mockResolvedValue(playerGOL_FRA);
-      mockPrisma.rosterPlayer.findUnique
-        .mockResolvedValueOnce(null) // signPlayer is free agent
-        .mockResolvedValueOnce(releaseRp); // releasePlayer is in roster
-      mockPrisma.rosterPlayer.findFirst.mockResolvedValue(null); // no country conflict
-      mockPrisma.$transaction.mockResolvedValue([]);
+    const makeTx = (
+      overrides: {
+        signPlayer?: typeof playerGOL_FRA | null;
+        existingRp?: { id: string } | null;
+        releaseRp?: typeof releaseRp | { rosterId: string; player: { position: string } } | null;
+        hasCountry?: { id: string } | null;
+      } = {},
+    ) => {
+      const {
+        signPlayer = playerGOL_FRA,
+        existingRp = null,
+        releaseRp: rp = releaseRp,
+        hasCountry = null,
+      } = overrides;
+      return {
+        player: { findUnique: jest.fn().mockResolvedValue(signPlayer) },
+        rosterPlayer: {
+          findUnique: jest.fn().mockResolvedValueOnce(existingRp).mockResolvedValueOnce(rp),
+          findFirst: jest.fn().mockResolvedValue(hasCountry),
+          delete: jest.fn().mockResolvedValue({}),
+          create: jest.fn().mockResolvedValue({}),
+        },
+      };
     };
 
     it('throws ConflictException when no active window', async () => {
@@ -479,18 +491,20 @@ describe('TradesService', () => {
     it('throws ConflictException when signPlayer is already drafted', async () => {
       mockPrisma.tradeWindow.findFirst.mockResolvedValue(activeWindow);
       mockPrisma.membership.findUnique.mockResolvedValue(membershipProposer);
-      mockPrisma.player.findUnique.mockResolvedValue(playerGOL_FRA);
-      mockPrisma.rosterPlayer.findUnique.mockResolvedValueOnce({ id: 'rp-existing' }); // not free agent
+      const tx = makeTx({ existingRp: { id: 'rp-existing' } });
+      mockPrisma.$transaction.mockImplementation(
+        async (cb: (tx: typeof mockPrisma) => Promise<unknown>) => cb(tx as typeof mockPrisma),
+      );
       await expect(service.signFreeAgent(leagueId, userId, dto)).rejects.toThrow(ConflictException);
     });
 
     it('throws ForbiddenException when releasePlayer is not in user roster', async () => {
       mockPrisma.tradeWindow.findFirst.mockResolvedValue(activeWindow);
       mockPrisma.membership.findUnique.mockResolvedValue(membershipProposer);
-      mockPrisma.player.findUnique.mockResolvedValue(playerGOL_FRA);
-      mockPrisma.rosterPlayer.findUnique
-        .mockResolvedValueOnce(null) // free agent
-        .mockResolvedValueOnce({ ...releaseRp, rosterId: 'other-roster' }); // wrong roster
+      const tx = makeTx({ releaseRp: { ...releaseRp, rosterId: 'other-roster' } });
+      mockPrisma.$transaction.mockImplementation(
+        async (cb: (tx: typeof mockPrisma) => Promise<unknown>) => cb(tx as typeof mockPrisma),
+      );
       await expect(service.signFreeAgent(leagueId, userId, dto)).rejects.toThrow(
         ForbiddenException,
       );
@@ -499,28 +513,42 @@ describe('TradesService', () => {
     it('throws ConflictException when positions differ', async () => {
       mockPrisma.tradeWindow.findFirst.mockResolvedValue(activeWindow);
       mockPrisma.membership.findUnique.mockResolvedValue(membershipProposer);
-      mockPrisma.player.findUnique.mockResolvedValue(playerGOL_FRA); // GOL
-      mockPrisma.rosterPlayer.findUnique
-        .mockResolvedValueOnce(null) // free agent
-        .mockResolvedValueOnce({ ...releaseRp, player: { position: 'MEI' } }); // MEI — wrong position
+      const tx = makeTx({ releaseRp: { ...releaseRp, player: { position: 'MEI' } } });
+      mockPrisma.$transaction.mockImplementation(
+        async (cb: (tx: typeof mockPrisma) => Promise<unknown>) => cb(tx as typeof mockPrisma),
+      );
       await expect(service.signFreeAgent(leagueId, userId, dto)).rejects.toThrow(ConflictException);
     });
 
     it('throws ConflictException when signing would violate country rule', async () => {
       mockPrisma.tradeWindow.findFirst.mockResolvedValue(activeWindow);
       mockPrisma.membership.findUnique.mockResolvedValue(membershipProposer);
-      mockPrisma.player.findUnique.mockResolvedValue(playerGOL_FRA); // FRA
-      mockPrisma.rosterPlayer.findUnique
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(releaseRp);
-      mockPrisma.rosterPlayer.findFirst.mockResolvedValue({ id: 'conflict' }); // already has FRA player
+      const tx = makeTx({ hasCountry: { id: 'conflict' } });
+      mockPrisma.$transaction.mockImplementation(
+        async (cb: (tx: typeof mockPrisma) => Promise<unknown>) => cb(tx as typeof mockPrisma),
+      );
       await expect(service.signFreeAgent(leagueId, userId, dto)).rejects.toThrow(ConflictException);
     });
 
-    it('deletes released player and creates signed player in transaction', async () => {
-      setupSign();
+    it('executes delete and create inside transaction on success', async () => {
+      mockPrisma.tradeWindow.findFirst.mockResolvedValue(activeWindow);
+      mockPrisma.membership.findUnique.mockResolvedValue(membershipProposer);
+      const tx = makeTx();
+      mockPrisma.$transaction.mockImplementation(
+        async (cb: (tx: typeof mockPrisma) => Promise<unknown>) => cb(tx as typeof mockPrisma),
+      );
       await service.signFreeAgent(leagueId, userId, dto);
-      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(tx.rosterPlayer.delete).toHaveBeenCalledTimes(1);
+      expect(tx.rosterPlayer.create).toHaveBeenCalledTimes(1);
+    });
+
+    // §7.7 — two concurrent signings of the same free agent → exactly one persists, other gets 409
+    it('throws ConflictException (409) when free agent already signed concurrently (P2002)', async () => {
+      mockPrisma.tradeWindow.findFirst.mockResolvedValue(activeWindow);
+      mockPrisma.membership.findUnique.mockResolvedValue(membershipProposer);
+      const p2002 = Object.assign(new Error('Unique constraint failed'), { code: 'P2002' });
+      mockPrisma.$transaction.mockRejectedValue(p2002);
+      await expect(service.signFreeAgent(leagueId, userId, dto)).rejects.toThrow(ConflictException);
     });
   });
 
