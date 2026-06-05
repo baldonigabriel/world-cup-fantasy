@@ -1,0 +1,332 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String         @id @default(cuid())
+  username     String         @unique
+  teamName     String
+  passwordHash String
+  createdAt    DateTime       @default(now())
+  memberships  Membership[]
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+// ─── World Cup Data ───────────────────────────────────────────────────────────
+
+model Country {
+  id            String         @id @default(cuid())
+  name          String
+  code          String         @unique
+  flagUrl       String?
+  players       Player[]
+  rosterPlayers RosterPlayer[]
+}
+
+model Player {
+  id                String             @id @default(cuid())
+  name              String
+  position          Position
+  countryId         String
+  country           Country            @relation(fields: [countryId], references: [id])
+  externalId        Int?               @unique
+  photoUrl          String?
+  rosterPlayers     RosterPlayer[]
+  draftPicks        DraftPick[]
+  lineupSlots       LineupSlot[]
+  snapshotSlots     LineupSnapshotSlot[]
+  playerRoundScores PlayerRoundScore[]
+}
+
+enum Position {
+  GOL
+  DEF
+  MEI
+  ATA
+}
+
+// ─── League & Membership ─────────────────────────────────────────────────────
+
+model League {
+  id           String        @id @default(cuid())
+  name         String
+  inviteCode   String        @unique
+  ownerId      String
+  maxTeams     Int           @default(8)
+  createdAt    DateTime      @default(now())
+  memberships  Membership[]
+  draftState   DraftState?
+  rounds       Round[]
+  tradeWindows TradeWindow[]
+  trades       Trade[]
+}
+
+model Membership {
+  id       String  @id @default(cuid())
+  leagueId String
+  userId   String
+  league   League  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roster   Roster?
+
+  @@unique([leagueId, userId])
+}
+
+// ─── Roster ───────────────────────────────────────────────────────────────────
+
+model Roster {
+  id              String             @id @default(cuid())
+  membershipId    String             @unique
+  membership      Membership         @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  rosterPlayers   RosterPlayer[]
+  lineups         Lineup[]
+  lineupSnapshots LineupSnapshot[]
+  teamRoundScores TeamRoundScore[]
+  playerRoundScores PlayerRoundScore[]
+  proposedTrades  Trade[]            @relation("ProposerRoster")
+  receivedTrades  Trade[]            @relation("ReceiverRoster")
+}
+
+model RosterPlayer {
+  id        String  @id @default(cuid())
+  rosterId  String
+  roster    Roster  @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  playerId  String
+  player    Player  @relation(fields: [playerId], references: [id])
+  leagueId  String
+  countryId String
+  country   Country @relation(fields: [countryId], references: [id])
+
+  // Domain invariants enforced at DB level
+  @@unique([leagueId, playerId])   // exclusive ownership per league
+  @@unique([rosterId, countryId])  // max 1 country per team
+}
+
+// ─── Draft ────────────────────────────────────────────────────────────────────
+
+model DraftState {
+  id          String      @id @default(cuid())
+  leagueId    String      @unique
+  league      League      @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  status      DraftStatus @default(PENDING)
+  order       String[]    // membershipIds in drawn order
+  currentPick Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  picks       DraftPick[]
+}
+
+model DraftPick {
+  id           String     @id @default(cuid())
+  draftStateId String
+  draftState   DraftState @relation(fields: [draftStateId], references: [id], onDelete: Cascade)
+  membershipId String
+  playerId     String
+  player       Player     @relation(fields: [playerId], references: [id])
+  pickIndex    Int
+  pickedAt     DateTime   @default(now())
+}
+
+enum DraftStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+// ─── Round & Lineup ───────────────────────────────────────────────────────────
+
+model Round {
+  id                String             @id @default(cuid())
+  leagueId          String
+  league            League             @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  stage             RoundStage
+  opensAt           DateTime
+  lockAt            DateTime
+  locked            Boolean            @default(false)
+  lineups           Lineup[]
+  lineupSnapshots   LineupSnapshot[]
+  fixtureRounds     FixtureRound[]
+  playerRoundScores PlayerRoundScore[]
+  teamRoundScores   TeamRoundScore[]
+}
+
+enum RoundStage {
+  GROUP_1
+  GROUP_2
+  GROUP_3
+  R32
+  R16
+  QF
+  SF
+  FINAL
+}
+
+model Lineup {
+  id        String      @id @default(cuid())
+  rosterId  String
+  roster    Roster      @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  roundId   String
+  round     Round       @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  formation String
+  captainId String
+  updatedAt DateTime    @updatedAt
+  slots     LineupSlot[]
+
+  @@unique([rosterId, roundId])
+}
+
+model LineupSlot {
+  id        String  @id @default(cuid())
+  lineupId  String
+  lineup    Lineup  @relation(fields: [lineupId], references: [id], onDelete: Cascade)
+  playerId  String
+  player    Player  @relation(fields: [playerId], references: [id])
+  slotIndex Int     // 1-11 starters, 12-15 subs
+  isStarter Boolean
+}
+
+// ─── Snapshot (immutable at lock time) ────────────────────────────────────────
+
+model LineupSnapshot {
+  id        String               @id @default(cuid())
+  roundId   String
+  round     Round                @relation(fields: [roundId], references: [id])
+  rosterId  String
+  roster    Roster               @relation(fields: [rosterId], references: [id])
+  captainId String
+  formation String
+  createdAt DateTime             @default(now())
+  slots     LineupSnapshotSlot[]
+  playerRoundScores PlayerRoundScore[]
+
+  @@unique([roundId, rosterId])
+}
+
+model LineupSnapshotSlot {
+  id               String         @id @default(cuid())
+  lineupSnapshotId String
+  lineupSnapshot   LineupSnapshot @relation(fields: [lineupSnapshotId], references: [id], onDelete: Cascade)
+  playerId         String
+  player           Player         @relation(fields: [playerId], references: [id])
+  slotIndex        Int
+  isStarter        Boolean
+}
+
+// ─── Fixtures & Scoring ───────────────────────────────────────────────────────
+
+model FixtureFacts {
+  id            String        @id @default(cuid())
+  fixtureId     Int           @unique // API-Football ID — idempotency key
+  status        FixtureStatus @default(SCHEDULED)
+  homeCountryId String?
+  awayCountryId String?
+  payload       Json
+  fetchedAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  fixtureRounds FixtureRound[]
+}
+
+model FixtureRound {
+  fixtureId Int
+  roundId   String
+  fixture   FixtureFacts @relation(fields: [fixtureId], references: [fixtureId])
+  round     Round        @relation(fields: [roundId], references: [id])
+
+  @@id([fixtureId, roundId])
+}
+
+enum FixtureStatus {
+  SCHEDULED
+  LIVE
+  FINISHED
+  CANCELLED
+}
+
+// Points stored as Int ×10 — never Float
+model PlayerRoundScore {
+  id               String         @id @default(cuid())
+  roundId          String
+  round            Round          @relation(fields: [roundId], references: [id])
+  rosterId         String
+  roster           Roster         @relation(fields: [rosterId], references: [id])
+  playerId         String
+  player           Player         @relation(fields: [playerId], references: [id])
+  lineupSnapshotId String
+  lineupSnapshot   LineupSnapshot @relation(fields: [lineupSnapshotId], references: [id])
+  points           Int            // ×10
+  isCaptain        Boolean        @default(false)
+  breakdown        Json
+
+  @@unique([roundId, rosterId, playerId])
+}
+
+model TeamRoundScore {
+  id       String @id @default(cuid())
+  roundId  String
+  round    Round  @relation(fields: [roundId], references: [id])
+  rosterId String
+  roster   Roster @relation(fields: [rosterId], references: [id])
+  points   Int    // ×10 — sum of PlayerRoundScore for this roster/round
+
+  @@unique([roundId, rosterId])
+}
+
+// ─── Trades ───────────────────────────────────────────────────────────────────
+
+model TradeWindow {
+  id       String   @id @default(cuid())
+  leagueId String
+  league   League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  opensAt  DateTime
+  closesAt DateTime
+  trades   Trade[]
+}
+
+model Trade {
+  id               String      @id @default(cuid())
+  leagueId         String
+  league           League      @relation(fields: [leagueId], references: [id])
+  tradeWindowId    String?
+  tradeWindow      TradeWindow? @relation(fields: [tradeWindowId], references: [id])
+  proposerRosterId String
+  proposerRoster   Roster      @relation("ProposerRoster", fields: [proposerRosterId], references: [id])
+  receiverRosterId String
+  receiverRoster   Roster      @relation("ReceiverRoster", fields: [receiverRosterId], references: [id])
+  status           TradeStatus @default(PENDING)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  items            TradeItem[]
+}
+
+model TradeItem {
+  id           String @id @default(cuid())
+  tradeId      String
+  trade        Trade  @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  playerId     String
+  fromRosterId String
+  toRosterId   String
+}
+
+enum TradeStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}
