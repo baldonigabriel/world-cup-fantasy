@@ -12,6 +12,7 @@ import { MatchesModule } from './modules/matches/matches.module';
 import { ScoringModule } from './modules/scoring/scoring.module';
 import { TradesModule } from './modules/trades/trades.module';
 import { StandingsModule } from './modules/standings/standings.module';
+import { LineupModule } from './modules/lineup/lineup.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { StandingsModule } from './modules/standings/standings.module';
     ScoringModule,
     TradesModule,
     StandingsModule,
+    LineupModule,
   ],
 })
 export class AppModule {}
