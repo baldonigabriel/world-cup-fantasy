@@ -23,7 +23,7 @@ export default function RegisterPage() {
 
     try {
       await register(username, teamName, password);
-      router.push('/dashboard');
+      router.push('/leagues');
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setError('Este login já está em uso. Escolha outro.');
