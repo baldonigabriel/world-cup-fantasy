@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/auth.store';
 import { api } from '@/lib/api';
+import { DraftStatusBadge } from '@/components/leagues/DraftStatusBadge';
 import type { LeagueResponseDto } from './types';
 
 export default function LeaguesPage() {
@@ -59,8 +60,8 @@ export default function LeaguesPage() {
                 {league.memberCount} / {league.maxTeams} times
               </p>
               {league.draftStatus && (
-                <span className="mt-3 inline-block rounded bg-surface-2 px-2 py-0.5 text-xs uppercase tracking-wider text-text-secondary">
-                  {league.draftStatus}
+                <span className="mt-3 inline-block">
+                  <DraftStatusBadge status={league.draftStatus} />
                 </span>
               )}
             </Link>
