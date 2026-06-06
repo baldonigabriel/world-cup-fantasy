@@ -72,7 +72,7 @@ const mockPlayer = (pos: Position = Position.ATA, countryId = 'country-br') => (
   countryId,
   externalId: 1,
   photoUrl: null,
-  country: { name: 'Brazil', code: 'Brazil' },
+  country: { name: 'Brazil', code: 'BRA' },
 });
 
 const mockMembership = (rosterPlayers: unknown[] = []) => ({
@@ -251,14 +251,12 @@ describe('DraftService', () => {
       // The last pick goes to the team that picks at position totalPicks-1
       const expectedMembId = resolvePickingMembership(totalPicks - 1, [membId, 'mem-2']);
 
-      mockPrisma.draftState.findUnique
-        .mockResolvedValueOnce(state)
-        .mockResolvedValueOnce({
-          ...state,
-          currentPick: totalPicks,
-          status: DraftStatus.COMPLETED,
-          picks: [],
-        });
+      mockPrisma.draftState.findUnique.mockResolvedValueOnce(state).mockResolvedValueOnce({
+        ...state,
+        currentPick: totalPicks,
+        status: DraftStatus.COMPLETED,
+        picks: [],
+      });
 
       // Adjust membership mock to match who's actually picking
       mockPrisma.membership.findUnique.mockResolvedValue({
