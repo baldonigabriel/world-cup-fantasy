@@ -398,6 +398,50 @@ describe('ScoringService', () => {
       expect(firstCallArgs).toEqual(secondCallArgs);
     });
 
+    it('cancelled fixture zeroes player and team scores on re-score', async () => {
+      // First run: fixture FINISHED → scores > 0
+      mockPrisma.league.findUnique.mockResolvedValue({ ownerId: userId });
+      mockPrisma.round.findUnique.mockResolvedValue({ id: roundId, leagueId, locked: true });
+      mockPrisma.fixtureFacts.findMany.mockResolvedValue(makeFixture(0));
+      mockPrisma.lineupSnapshot.findMany.mockResolvedValue([makeSnapshot('player-gol')]);
+      mockPrisma.playerRoundScore.upsert.mockResolvedValue({});
+      mockPrisma.teamRoundScore.upsert.mockResolvedValue({});
+
+      await service.scoreRound(leagueId, roundId, userId);
+
+      const firstRunPoints = mockPrisma.playerRoundScore.upsert.mock.calls.map(
+        (c: unknown[]) => (c[0] as { create: { points: number } }).create.points,
+      );
+      expect(firstRunPoints.some((p) => p > 0)).toBe(true);
+      const firstTeamPoints = (
+        mockPrisma.teamRoundScore.upsert.mock.calls[0][0] as { create: { points: number } }
+      ).create.points;
+      expect(firstTeamPoints).toBeGreaterThan(0);
+
+      // Second run: same fixture now CANCELLED — filtered out by status: FINISHED query → empty
+      jest.clearAllMocks();
+      mockPrisma.$transaction.mockImplementation(
+        async (fn: (tx: typeof mockPrisma) => Promise<unknown>) => fn(mockPrisma),
+      );
+      mockPrisma.league.findUnique.mockResolvedValue({ ownerId: userId });
+      mockPrisma.round.findUnique.mockResolvedValue({ id: roundId, leagueId, locked: true });
+      mockPrisma.fixtureFacts.findMany.mockResolvedValue([]);
+      mockPrisma.lineupSnapshot.findMany.mockResolvedValue([makeSnapshot('player-gol')]);
+      mockPrisma.playerRoundScore.upsert.mockResolvedValue({});
+      mockPrisma.teamRoundScore.upsert.mockResolvedValue({});
+
+      await service.scoreRound(leagueId, roundId, userId);
+
+      const secondRunPoints = mockPrisma.playerRoundScore.upsert.mock.calls.map(
+        (c: unknown[]) => (c[0] as { create: { points: number } }).create.points,
+      );
+      expect(secondRunPoints.every((p) => p === 0)).toBe(true);
+      const secondTeamPoints = (
+        mockPrisma.teamRoundScore.upsert.mock.calls[0][0] as { create: { points: number } }
+      ).create.points;
+      expect(secondTeamPoints).toBe(0);
+    });
+
     it('upserts TeamRoundScore equal to the sum of PlayerRoundScores', async () => {
       mockPrisma.league.findUnique.mockResolvedValue({ ownerId: userId });
       mockPrisma.round.findUnique.mockResolvedValue({ id: roundId, leagueId, locked: true });
