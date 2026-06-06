@@ -107,6 +107,15 @@ export default function LeagueLobbyPage() {
               </Link>
             )}
 
+            {completed && (
+              <Link
+                href={`/leagues/${id}/lineup`}
+                className="rounded bg-amber-500 px-5 py-2 font-body font-semibold text-background transition-colors duration-base hover:bg-amber-400"
+              >
+                Montar Escalação →
+              </Link>
+            )}
+
             {canDraw && (
               <button
                 onClick={() => drawMutation.mutate()}
