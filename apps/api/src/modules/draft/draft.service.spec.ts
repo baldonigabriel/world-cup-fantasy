@@ -278,5 +278,113 @@ describe('DraftService', () => {
         }),
       );
     });
+
+    // §12.6 — concurrent picks: the alreadyDrafted guard detects the player
+    // already belongs to this league (inserted by a concurrent pick that won).
+    // The unique(leagueId, playerId) DB constraint is the backstop; in HTTP
+    // context it maps to 409 via the global exception filter.
+    it('concurrent pick for same player returns ConflictException (§12.6)', async () => {
+      mockPrisma.draftState.findUnique.mockResolvedValue(mockDraftState());
+      mockPrisma.membership.findUnique.mockResolvedValue(mockMembership());
+      mockPrisma.player.findUnique.mockResolvedValue(mockPlayer());
+      // Concurrent pick already went through — player now exists in the league
+      mockPrisma.rosterPlayer.findUnique.mockResolvedValue({ id: 'rp-concurrent' });
+
+      await expect(service.pick(leagueId, userId, 'player-1')).rejects.toThrow(ConflictException);
+      expect(mockPrisma.rosterPlayer.create).not.toHaveBeenCalled();
+    });
+
+    // §12.8 — final roster composition: 2 GOL, 5 DEF, 4 MEI, 4 ATA, 15 distinct countries.
+    // Uses N=1 (single team) so pick order is trivially the same team every time.
+    it('completes draft with 2 GOL, 5 DEF, 4 MEI, 4 ATA and 15 distinct countries (§12.8)', async () => {
+      const order = [membId];
+      const totalPicks = order.length * 15;
+
+      const pickPlan: Array<{ position: Position; countryId: string }> = [
+        { position: Position.GOL, countryId: 'c-1' },
+        { position: Position.GOL, countryId: 'c-2' },
+        { position: Position.DEF, countryId: 'c-3' },
+        { position: Position.DEF, countryId: 'c-4' },
+        { position: Position.DEF, countryId: 'c-5' },
+        { position: Position.DEF, countryId: 'c-6' },
+        { position: Position.DEF, countryId: 'c-7' },
+        { position: Position.MEI, countryId: 'c-8' },
+        { position: Position.MEI, countryId: 'c-9' },
+        { position: Position.MEI, countryId: 'c-10' },
+        { position: Position.MEI, countryId: 'c-11' },
+        { position: Position.ATA, countryId: 'c-12' },
+        { position: Position.ATA, countryId: 'c-13' },
+        { position: Position.ATA, countryId: 'c-14' },
+        { position: Position.ATA, countryId: 'c-15' },
+      ];
+
+      mockPrisma.player.count.mockResolvedValue(100);
+
+      for (let i = 0; i < pickPlan.length; i++) {
+        const { position, countryId } = pickPlan[i];
+        const isLast = i + 1 === totalPicks;
+        const currentRoster = pickPlan.slice(0, i).map((p) => ({
+          countryId: p.countryId,
+          player: { position: p.position },
+        }));
+
+        mockPrisma.draftState.findUnique
+          .mockResolvedValueOnce(mockDraftState({ order, currentPick: i }))
+          .mockResolvedValueOnce({
+            ...mockDraftState({
+              order,
+              currentPick: i + 1,
+              status: isLast ? DraftStatus.COMPLETED : DraftStatus.IN_PROGRESS,
+            }),
+            picks: [],
+          });
+        mockPrisma.membership.findUnique.mockResolvedValueOnce(mockMembership(currentRoster));
+        mockPrisma.player.findUnique.mockResolvedValueOnce({
+          id: `player-${i}`,
+          name: `Player ${i}`,
+          position,
+          countryId,
+          externalId: i,
+          photoUrl: null,
+          country: { name: `Country ${i}`, code: countryId },
+        });
+        mockPrisma.rosterPlayer.findUnique.mockResolvedValueOnce(null);
+        mockPrisma.rosterPlayer.create.mockResolvedValueOnce({});
+        mockPrisma.draftPick.create.mockResolvedValueOnce({});
+        mockPrisma.draftState.update.mockResolvedValueOnce({});
+
+        await service.pick(leagueId, userId, `player-${i}`);
+      }
+
+      // Last update must flip to COMPLETED with pick index = totalPicks
+      const updateCalls = mockPrisma.draftState.update.mock.calls;
+      const lastData = (
+        updateCalls[updateCalls.length - 1][0] as {
+          data: { status: DraftStatus; currentPick: number };
+        }
+      ).data;
+      expect(lastData.status).toBe(DraftStatus.COMPLETED);
+      expect(lastData.currentPick).toBe(totalPicks);
+
+      // All 15 picks executed → 15 rosterPlayer records created
+      const createCalls = mockPrisma.rosterPlayer.create.mock.calls;
+      expect(createCalls).toHaveLength(15);
+
+      // 15 distinct countries
+      const countriesCreated = createCalls.map(
+        (c: unknown[]) => (c[0] as { data: { countryId: string } }).data.countryId,
+      );
+      expect(new Set(countriesCreated).size).toBe(15);
+
+      // Quota per position matches spec constants
+      const posCount = pickPlan.reduce<Record<string, number>>((acc, p) => {
+        acc[p.position] = (acc[p.position] ?? 0) + 1;
+        return acc;
+      }, {});
+      expect(posCount[Position.GOL]).toBe(ROSTER_QUOTAS[Position.GOL]);
+      expect(posCount[Position.DEF]).toBe(ROSTER_QUOTAS[Position.DEF]);
+      expect(posCount[Position.MEI]).toBe(ROSTER_QUOTAS[Position.MEI]);
+      expect(posCount[Position.ATA]).toBe(ROSTER_QUOTAS[Position.ATA]);
+    });
   });
 });
