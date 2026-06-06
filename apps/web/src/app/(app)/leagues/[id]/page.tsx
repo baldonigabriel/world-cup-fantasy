@@ -62,6 +62,14 @@ export default function LeagueLobbyPage() {
               Ir para o Draft →
             </Link>
           )}
+          {draftDone && (
+            <Link
+              href={`/leagues/${id}/lineup`}
+              className="rounded bg-amber-500 px-5 py-2 font-body font-semibold text-background transition-colors hover:bg-amber-400"
+            >
+              Montar Escalação →
+            </Link>
+          )}
 
           {isOwner && !league.draftStatus && (
             <button
