@@ -6,6 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { Position, TradeStatus } from '@wcf/shared';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -25,6 +26,23 @@ export class TradesService {
   private readonly logger = new Logger(TradesService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  // ── Scheduler ─────────────────────────────────────────────────────────────────
+
+  @Cron(CronExpression.EVERY_HOUR)
+  async expirePendingTrades(): Promise<void> {
+    const now = new Date();
+    const { count } = await this.prisma.trade.updateMany({
+      where: {
+        status: TradeStatus.PENDING,
+        tradeWindow: { closesAt: { lt: now } },
+      },
+      data: { status: TradeStatus.EXPIRED },
+    });
+    if (count > 0) {
+      this.logger.log(`Expired ${count} pending trade(s) from closed windows`);
+    }
+  }
 
   // ── Trade Windows ─────────────────────────────────────────────────────────────
 

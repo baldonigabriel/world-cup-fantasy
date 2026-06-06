@@ -107,7 +107,13 @@ const mockPrisma = {
     delete: jest.fn(),
     create: jest.fn(),
   },
-  trade: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn() },
+  trade: {
+    create: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+    findMany: jest.fn(),
+    updateMany: jest.fn(),
+  },
   player: { findUnique: jest.fn(), findMany: jest.fn() },
   $transaction: jest.fn(),
 };
@@ -657,6 +663,41 @@ describe('TradesService', () => {
       const result = await service.listFreeAgents(leagueId, userId, {});
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe(playerGOL_FRA.id);
+    });
+  });
+
+  // ── expirePendingTrades (A1) ─────────────────────────────────────────────────
+
+  describe('expirePendingTrades', () => {
+    it('marks PENDING trades from closed windows as EXPIRED', async () => {
+      mockPrisma.trade.updateMany.mockResolvedValue({ count: 3 });
+
+      await service.expirePendingTrades();
+
+      expect(mockPrisma.trade.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: TradeStatus.PENDING,
+            tradeWindow: expect.objectContaining({
+              closesAt: expect.objectContaining({ lt: expect.any(Date) }),
+            }),
+          }),
+          data: { status: TradeStatus.EXPIRED },
+        }),
+      );
+    });
+
+    it('does not affect ACCEPTED or REJECTED trades', async () => {
+      mockPrisma.trade.updateMany.mockResolvedValue({ count: 0 });
+
+      await service.expirePendingTrades();
+
+      const call = mockPrisma.trade.updateMany.mock.calls[0][0] as {
+        where: { status: TradeStatus };
+        data: { status: TradeStatus };
+      };
+      expect(call.where.status).toBe(TradeStatus.PENDING);
+      expect(call.data.status).toBe(TradeStatus.EXPIRED);
     });
   });
 });
