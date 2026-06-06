@@ -67,6 +67,7 @@ export class TradesService {
   ): Promise<TradeResponseDto> {
     const activeWindow = await this.findActiveWindow(leagueId);
     if (!activeWindow) throw new ConflictException('no active trade window');
+    await this.assertNoLockedRound(leagueId);
 
     const membership = await this.assertMember(leagueId, userId);
     const proposerRosterId = membership.roster!.id;
@@ -146,6 +147,7 @@ export class TradesService {
 
     const activeWindow = await this.findActiveWindow(leagueId);
     if (!activeWindow) throw new ConflictException('trade window is no longer open');
+    await this.assertNoLockedRound(leagueId);
 
     const offeredItem = trade.items.find((i) => i.fromRosterId === trade.proposerRosterId)!;
     const requestedItem = trade.items.find((i) => i.fromRosterId === trade.receiverRosterId)!;
@@ -304,6 +306,7 @@ export class TradesService {
   async signFreeAgent(leagueId: string, userId: string, dto: SignFreeAgentDto): Promise<void> {
     const activeWindow = await this.findActiveWindow(leagueId);
     if (!activeWindow) throw new ConflictException('no active trade window');
+    await this.assertNoLockedRound(leagueId);
 
     const membership = await this.assertMember(leagueId, userId);
     const rosterId = membership.roster!.id;
@@ -418,6 +421,15 @@ export class TradesService {
         closesAt: { gte: now },
       },
     });
+  }
+
+  private async assertNoLockedRound(leagueId: string): Promise<void> {
+    const lockedRound = await this.prisma.round.findFirst({
+      where: { leagueId, locked: true },
+    });
+    if (lockedRound) {
+      throw new ConflictException('Trades are locked during an active round');
+    }
   }
 
   private async loadTrade(tradeId: string) {

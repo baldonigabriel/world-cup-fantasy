@@ -99,6 +99,7 @@ const mockPrisma = {
   tradeWindow: { create: jest.fn(), findMany: jest.fn(), findFirst: jest.fn() },
   membership: { findUnique: jest.fn() },
   roster: { findFirst: jest.fn() },
+  round: { findFirst: jest.fn() },
   rosterPlayer: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
@@ -172,6 +173,97 @@ describe('TradesService', () => {
 
       expect(mockPrisma.tradeWindow.create).toHaveBeenCalledTimes(1);
       expect(result.id).toBe(activeWindow.id);
+    });
+  });
+
+  // ── locked-round guard ──────────────────────────────────────────────────────
+
+  describe('locked-round guard (A2)', () => {
+    const lockedRound = { id: 'round-1', leagueId, locked: true };
+
+    it('proposeTrade throws ConflictException (409) during a locked round', async () => {
+      mockPrisma.tradeWindow.findFirst.mockResolvedValue(activeWindow);
+      mockPrisma.round.findFirst.mockResolvedValue(lockedRound);
+      await expect(
+        service.proposeTrade(leagueId, userId, {
+          offeredPlayerId: playerMEI_BRA.id,
+          requestedPlayerId: playerMEI_ARG.id,
+          receiverRosterId,
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('signFreeAgent throws ConflictException (409) during a locked round', async () => {
+      mockPrisma.tradeWindow.findFirst.mockResolvedValue(activeWindow);
+      mockPrisma.round.findFirst.mockResolvedValue(lockedRound);
+      await expect(
+        service.signFreeAgent(leagueId, userId, {
+          signPlayerId: playerGOL_FRA.id,
+          releasePlayerId: 'p-gol-old',
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('acceptTrade throws ConflictException (409) during a locked round', async () => {
+      mockPrisma.trade.findUnique.mockResolvedValue(pendingTrade);
+      mockPrisma.membership.findUnique.mockResolvedValue(membershipReceiver);
+      mockPrisma.tradeWindow.findFirst.mockResolvedValue(activeWindow);
+      mockPrisma.round.findFirst.mockResolvedValue(lockedRound);
+      await expect(service.acceptTrade(tradeId, userId)).rejects.toThrow(ConflictException);
+    });
+
+    it('only blocks the league that has a locked round — other leagues remain open', async () => {
+      const otherLeagueId = 'league-other';
+      // League under test has locked round; other league has no locked round
+      mockPrisma.round.findFirst.mockImplementation(
+        (args: { where: { leagueId: string; locked: boolean } }) =>
+          Promise.resolve(args.where.leagueId === leagueId ? lockedRound : null),
+      );
+      mockPrisma.tradeWindow.findFirst.mockResolvedValue(activeWindow);
+      mockPrisma.membership.findUnique.mockResolvedValue({
+        id: 'mem-other',
+        roster: { id: 'roster-other' },
+      });
+      mockPrisma.roster.findFirst.mockResolvedValue({ id: receiverRosterId });
+
+      // leagueId → blocked
+      await expect(
+        service.proposeTrade(leagueId, userId, {
+          offeredPlayerId: playerMEI_BRA.id,
+          requestedPlayerId: playerMEI_ARG.id,
+          receiverRosterId,
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      // Reset call-order mocks so the next proposeTrade gets the right sequence
+      jest.clearAllMocks();
+      mockPrisma.tradeWindow.findFirst.mockResolvedValue(activeWindow);
+      mockPrisma.round.findFirst.mockImplementation(
+        (args: { where: { leagueId: string; locked: boolean } }) =>
+          Promise.resolve(args.where.leagueId === leagueId ? lockedRound : null),
+      );
+      mockPrisma.membership.findUnique.mockResolvedValue({
+        id: 'mem-other',
+        roster: { id: 'roster-other' },
+      });
+      mockPrisma.roster.findFirst.mockResolvedValue({ id: 'roster-other-receiver' });
+      mockPrisma.rosterPlayer.findUnique
+        .mockResolvedValueOnce({ ...rpProposer, rosterId: 'roster-other' })
+        .mockResolvedValueOnce({ ...rpReceiver, rosterId: 'roster-other-receiver' });
+      mockPrisma.trade.create.mockResolvedValue({
+        ...pendingTrade,
+        leagueId: otherLeagueId,
+        items: pendingTrade.items,
+      });
+      mockPrisma.player.findMany.mockResolvedValue([playerMEI_BRA, playerMEI_ARG]);
+
+      // otherLeagueId → allowed (no locked round)
+      const result = await service.proposeTrade(otherLeagueId, userId, {
+        offeredPlayerId: playerMEI_BRA.id,
+        requestedPlayerId: playerMEI_ARG.id,
+        receiverRosterId: 'roster-other-receiver',
+      });
+      expect(result.status).toBe(TradeStatus.PENDING);
     });
   });
 
