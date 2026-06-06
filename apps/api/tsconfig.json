@@ -4,6 +4,7 @@
     "module": "CommonJS",
     "moduleResolution": "node",
     "ignoreDeprecations": "5.0",
+    "allowJs": true,
     "target": "ES2021",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
