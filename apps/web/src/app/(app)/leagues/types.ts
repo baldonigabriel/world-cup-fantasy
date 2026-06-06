@@ -1,4 +1,4 @@
-import { DraftStatus } from '@wcf/shared';
+import { DraftStatus, Position } from '@wcf/shared';
 
 export interface LeagueMemberDto {
   membershipId: string;
@@ -17,4 +17,29 @@ export interface LeagueResponseDto {
   memberCount: number;
   draftStatus: DraftStatus | null;
   members: LeagueMemberDto[];
+}
+
+export interface DraftPickPlayerDto {
+  id: string;
+  name: string;
+  position: Position;
+  photoUrl: string | null;
+  countryName: string;
+  countryCode: string;
+}
+
+export interface DraftPickDto {
+  pickIndex: number;
+  membershipId: string;
+  player: DraftPickPlayerDto;
+  pickedAt: string;
+}
+
+export interface DraftStateDto {
+  status: DraftStatus;
+  currentPick: number;
+  totalPicks: number;
+  nextMembershipId: string | null;
+  order: string[]; // membershipIds in snake order
+  picks: DraftPickDto[];
 }
