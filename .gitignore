@@ -13,6 +13,7 @@ build/
 # ─── Next.js ─────────────────────────────────────────────
 apps/web/.next/
 apps/web/out/
+apps/web/next-env.d.ts
 
 # ─── NestJS ──────────────────────────────────────────────
 apps/api/dist/
