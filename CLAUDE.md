@@ -6,6 +6,9 @@ Guia operacional para o Claude Code. Leia antes de qualquer tarefa. As regras de
 
 Fantasy game da Copa do Mundo 2026 (estilo Cartola FC) com **posse exclusiva de jogadores por liga**, **draft turn-based assíncrono (snake)**, gestão de elenco e formação por rodada, **trocas entre usuários** e **pontuação por eventos**. Monorepo pnpm com 3 packages.
 
+- Uma liga por usuário (v1). Sem seletor de liga.
+- Fonte de dados de pontuação: API-Football (assinatura própria).
+
 ## Stack
 
 - **`apps/api` (@wcf/api)** — NestJS 10, Prisma, PostgreSQL 16, JWT (access 15min / refresh 7d), Swagger em `/api/docs`, class-validator/transformer, Helmet, CORS dinâmico. Prefixo global `api/v1`.
@@ -57,20 +60,22 @@ Estas regras protegem a corretude do jogo. Detalhe completo em `/specs`.
 - Mapeie a superfície afetada (módulos, banco, contratos em `@wcf/shared`) antes de mexer.
 - Mudou um contrato? Atualize `packages/shared` **e** o Swagger no mesmo PR.
 
-## Ordem de implementação (v1)
+## Estado e ordem (v1)
 
-1. **Schema Prisma + migrations** — User, League, Membership, Country, Player, Roster, RosterPlayer, DraftState, DraftPick, Round, Lineup, LineupSlot, Trade, TradeItem.
-2. **auth** — register / login / refresh, guards JWT.
-3. **players** — importação do dataset da API de dados (catálogo + países + posição em 4 buckets).
-4. **leagues** — criar liga, entrar, sortear ordem do draft.
-5. **draft** — máquina de estados turn-based snake (ver `specs/draft.md`).
-6. **lineup** — escalação/formação por rodada + trava.
-7. **scoring** — batch pós-rodada (ver `specs/scoring.md`, a escrever).
-8. **standings** — ranking sobre snapshots.
-9. **trades** — janelas + 1-por-1 + free agents (ver `specs/trades.md`).
+Backend: COMPLETO (auth, players, leagues, draft, lineup, scoring, standings,
+trades) — 173 testes, CI verde.
+
+Frontend (em andamento):
+
+- [feito] fundação de design, auth, liga, sala de draft, escalação
+- [fazer] home shell + navegação, admin de rodadas (comissário),
+  classificação, email no cadastro, breakdown de pontuação, mercado
+  (trocas + free agents — janela abre no mata-mata)
 
 ## Specs
 
 - `specs/draft.md` — ordem snake, quotas de elenco, posse exclusiva, regra de país, máquina de estados.
 - `specs/trades.md` — janelas, troca 1-por-1 mesma posição, contratação de free agents.
-- `specs/scoring.md` — pontuação por evento, idempotência, rollback. **(A escrever — depende da API de dados escolhida.)**
+- `specs/scoring.md`— pontuação por evento, idempotência, rollback.
+- `specs/auth.md` — campos de conta, unicidade (username, email, nome do time).
+- `specs/lineup.md` — escalação por rodada, regra de escalação ausente.

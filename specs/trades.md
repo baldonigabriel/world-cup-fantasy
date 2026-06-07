@@ -8,9 +8,8 @@ Depois do draft, seleções são eliminadas e jogadores param de pontuar. As tro
 
 ## 2. Janelas de troca
 
-- Trocas e contratações só acontecem dentro de uma **janela aberta pelo servidor** (ex.: entre a fase de grupos e o mata-mata).
+- A janela abre no início do mata-mata e fecha antes da primeira partida das oitavas; trocas e contratações de free agents acontecem na mesma janela. A janela é controlada por `opensAt`/`closesAt` definidos pelo comissário na criação; abre e fecha por data, sem ação manual. Autoridade do servidor — o client não decide.
 - Fora da janela, qualquer tentativa retorna `409`.
-- A janela é uma entidade com `opensAt` / `closesAt`. Autoridade do servidor — o client não decide.
 - **Nunca durante uma rodada travada.** Janela de troca e trava de escalação são mutuamente exclusivas: a troca altera o elenco do futuro, jamais o snapshot de uma rodada já iniciada.
 
 ## 3. Troca entre usuários (1-por-1)

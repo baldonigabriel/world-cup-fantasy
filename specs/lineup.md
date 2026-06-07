@@ -59,7 +59,7 @@ A operação é idempotente: cria a escalação se não existir, substitui se j�
 Apenas o dono da liga pode travar. Ao travar:
 
 1. Para cada `Lineup` submetida nessa rodada: cria um `LineupSnapshot` + `LineupSnapshotSlot` imutável.
-2. Times sem escalação submetida são **ignorados** — não recebem pontos na rodada.
+2. Times sem escalação submetida nesta rodada seguem a **regra de escalação ausente** (ver §9): herdam o snapshot mais recente quando existir, ou ficam sem snapshot e pontuam 0.
 3. Seta `round.locked = true`.
 4. Tudo em `prisma.$transaction`.
 
@@ -111,3 +111,29 @@ Após o lock, nenhum snapshot pode ser alterado. O scoring usa exclusivamente os
 - Lock com linhas de snapshot imutáveis criadas para cada escalação submetida.
 - Lock por não-dono retorna 403.
 - Lock de rodada já travada retorna 409.
+
+## 9. Regra de escalação ausente
+
+Define o que acontece, na trava (`lockRound`), quando um time não submete escalação para a rodada.
+
+### 9.1 Regra na trava
+
+- **Time submeteu escalação própria para a rodada**: usa essa escalação (comportamento padrão, snapshot normal — ver §4).
+- **Time NÃO submeteu**: herda a escalação válida mais recente do time (a última rodada em que ele escalou) e grava como snapshot desta rodada.
+- **Jogadores herdados indisponíveis nesta rodada** (seleção eliminada / sem partida): permanecem no snapshot herdado, mas pontuam 0 — **não há substituição automática na v1**.
+- **Sem nenhuma escalação anterior** (ex.: primeira rodada, Grupos 1): o time fica sem snapshot e pontua 0 na rodada.
+
+### 9.2 Aviso ao usuário (frontend, antes do lock)
+
+Se o usuário ainda não escalou para a rodada corrente e a trava está próxima, exibir aviso proeminente:
+
+> "Você não definiu escalação. Se não escalar até [lockAt], será usada sua escalação anterior, e jogadores de seleções eliminadas pontuarão 0."
+
+### 9.3 Critérios de aceite
+
+- Time sem escalação própria mas com escalação anterior → snapshot herdado da última rodada escalada.
+- Jogador herdado de seleção eliminada → presente no snapshot, 0 pontos.
+- Time sem nenhuma escalação anterior → sem snapshot, 0 pontos na rodada.
+- Time com escalação própria → inalterado.
+
+> **IMPORTANTE**: esta seção descreve a regra. A implementação em `lockRound` e no scoring é um passo separado, após revisão desta spec.

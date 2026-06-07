@@ -22,7 +22,7 @@ export default function LoginPage() {
 
     try {
       await login(username, password);
-      router.push('/leagues');
+      router.push('/home');
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setError('Usuário ou senha inválidos.');

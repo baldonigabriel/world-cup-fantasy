@@ -14,7 +14,11 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:seed": "ts-node prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@wcf/shared": "workspace:*",
