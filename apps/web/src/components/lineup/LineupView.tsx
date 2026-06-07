@@ -72,6 +72,7 @@ interface PlayerScore {
   playerId: string;
   points: number;
   isCaptain: boolean;
+  breakdown: Record<string, number>;
 }
 
 interface RoundScores {
@@ -116,6 +117,21 @@ const POSITION_CHIP: Record<Position, string> = {
   [Position.ATA]: 'text-red-400 bg-red-500/20',
 };
 
+// Order mirrors specs/scoring.md §2 (positives, then bonus, then negatives).
+// Keys match scoring.engine.ts ScoreResult.breakdown; "subtotal" is rendered separately.
+const BREAKDOWN_LABELS: Array<{ key: string; label: string }> = [
+  { key: 'goals', label: 'Gol' },
+  { key: 'assists', label: 'Assistência' },
+  { key: 'cleanSheet', label: 'Clean sheet' },
+  { key: 'penaltiesSaved', label: 'Pênalti defendido' },
+  { key: 'ratingBonus', label: 'Bônus de nota' },
+  { key: 'goalsConceded', label: 'Gols sofridos' },
+  { key: 'yellowCards', label: 'Cartão amarelo' },
+  { key: 'redCards', label: 'Cartão vermelho' },
+  { key: 'penaltiesMissed', label: 'Pênalti perdido' },
+  { key: 'ownGoals', label: 'Gol contra' },
+];
+
 const STAGE_LABEL: Record<string, string> = {
   GROUP_1: 'Grupos 1',
   GROUP_2: 'Grupos 2',
@@ -157,6 +173,19 @@ function lastName(name: string): string {
   return parts[parts.length - 1];
 }
 
+// Points are stored ×10 (see specs/scoring.md §1).
+function formatPoints(pointsX10: number): string {
+  return (pointsX10 / 10).toFixed(1);
+}
+
+// Format with an explicit sign for breakdown line items (e.g. "+8.0", "−1.0").
+function formatSigned(pointsX10: number): string {
+  const value = pointsX10 / 10;
+  if (value === 0) return '0.0';
+  const sign = value > 0 ? '+' : '−';
+  return `${sign}${Math.abs(value).toFixed(1)}`;
+}
+
 // ─── Countdown hook ───────────────────────────────────────────────────────────
 
 function useCountdown(target: string | null): string | null {
@@ -190,6 +219,7 @@ export function LineupView({ leagueId }: { leagueId: string }) {
   const [starterIds, setStarterIds] = useState<Set<string>>(new Set());
   const [captainId, setCaptainId] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<'field' | 'roster'>('field');
+  const [breakdownPlayerId, setBreakdownPlayerId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -316,6 +346,10 @@ export function LineupView({ leagueId }: { leagueId: string }) {
     () => new Map((myScore?.playerScores ?? []).map((ps) => [ps.playerId, ps.points])),
     [myScore],
   );
+
+  const breakdownPlayer = roster.find((p) => p.id === breakdownPlayerId) ?? null;
+  const breakdownScore =
+    myScore?.playerScores.find((ps) => ps.playerId === breakdownPlayerId) ?? null;
 
   const starterCount = starterIds.size;
   const canSave =
@@ -619,6 +653,7 @@ export function LineupView({ leagueId }: { leagueId: string }) {
               isLocked={isLocked}
               playerScoreMap={playerScoreMap}
               onToggleCaptain={(pid) => !isLocked && setCaptainId((p) => (p === pid ? null : pid))}
+              onOpenBreakdown={setBreakdownPlayerId}
             />
           </div>
 
@@ -717,6 +752,16 @@ export function LineupView({ leagueId }: { leagueId: string }) {
           </div>
         </div>
       )}
+
+      {/* ── Player breakdown drawer ──────────────────────────────────────────── */}
+      {breakdownPlayer && (
+        <PlayerBreakdownDrawer
+          player={breakdownPlayer}
+          isCaptain={captainId === breakdownPlayer.id}
+          score={breakdownScore}
+          onClose={() => setBreakdownPlayerId(null)}
+        />
+      )}
     </div>
   );
 }
@@ -731,6 +776,7 @@ interface PitchViewProps {
   isLocked: boolean;
   playerScoreMap: Map<string, number>;
   onToggleCaptain: (pid: string) => void;
+  onOpenBreakdown: (playerId: string) => void;
 }
 
 function PitchView({
@@ -741,6 +787,7 @@ function PitchView({
   isLocked,
   playerScoreMap,
   onToggleCaptain,
+  onOpenBreakdown,
 }: PitchViewProps) {
   if (!formationParts) return null;
   const { def, mei, ata } = formationParts;
@@ -768,6 +815,7 @@ function PitchView({
             isLocked={isLocked}
             score={playerScoreMap.get(p.id)}
             onToggleCaptain={() => onToggleCaptain(p.id)}
+            onOpenBreakdown={() => onOpenBreakdown(p.id)}
           />
         ))}
         {Array.from({ length: slots - players.length }).map((_, i) => (
@@ -847,17 +895,31 @@ function PitchCard({
   isLocked,
   score,
   onToggleCaptain,
+  onOpenBreakdown,
 }: {
   player: RosterPlayer;
   isCaptain: boolean;
   isLocked: boolean;
   score?: number;
   onToggleCaptain: () => void;
+  onOpenBreakdown: () => void;
 }) {
   return (
-    <div className="flex w-[52px] flex-col items-center gap-0.5 sm:w-[60px]">
+    <div
+      onClick={onOpenBreakdown}
+      role="button"
+      aria-label={`Ver detalhe de pontuação de ${player.name}`}
+      className="flex w-[52px] cursor-pointer flex-col items-center gap-0.5 sm:w-[60px]"
+    >
       <div
-        onClick={!isLocked ? onToggleCaptain : undefined}
+        onClick={
+          !isLocked
+            ? (e) => {
+                e.stopPropagation();
+                onToggleCaptain();
+              }
+            : undefined
+        }
         role={!isLocked ? 'button' : undefined}
         aria-label={
           !isLocked ? (isCaptain ? 'Remover capitão' : 'Definir como capitão') : undefined
@@ -903,6 +965,133 @@ function EmptySlot({ pos }: { pos: Position }) {
         <span className={cn('text-[9px] font-bold opacity-40', POSITION_TEXT[pos])}>{pos[0]}</span>
       </div>
       <div className="h-2.5 w-8 rounded-full bg-white/5" />
+    </div>
+  );
+}
+
+// ─── PlayerBreakdownDrawer ────────────────────────────────────────────────────
+
+function PlayerBreakdownDrawer({
+  player,
+  isCaptain,
+  score,
+  onClose,
+}: {
+  player: RosterPlayer;
+  isCaptain: boolean;
+  score: PlayerScore | null;
+  onClose: () => void;
+}) {
+  const items = score
+    ? BREAKDOWN_LABELS.filter(({ key }) => (score.breakdown[key] ?? 0) !== 0)
+    : [];
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-end justify-center sm:items-center">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={onClose} />
+
+      <div className="relative w-full max-w-md rounded-t-xl border border-border bg-surface shadow-2xl sm:rounded-xl">
+        {/* Header */}
+        <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+          <span
+            className={cn(
+              'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold',
+              POSITION_CHIP[player.position],
+            )}
+          >
+            {player.position}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-base font-semibold leading-tight text-text-primary">
+              {player.name}
+            </p>
+            <p className="text-[11px] text-text-secondary">{player.countryCode}</p>
+          </div>
+          {isCaptain && (
+            <span className="shrink-0 rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-400">
+              ★ Capitão
+            </span>
+          )}
+          <button
+            onClick={onClose}
+            aria-label="Fechar detalhe"
+            className="shrink-0 cursor-pointer rounded p-1 text-text-secondary transition-colors duration-150 hover:text-text-primary"
+          >
+            <XIcon className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4">
+          {!score ? (
+            <div className="flex flex-col items-center gap-2 py-8 text-center">
+              <ClockIcon className="h-6 w-6 text-text-secondary" />
+              <p className="text-sm font-semibold text-text-secondary">
+                Rodada ainda não pontuada.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                {items.length === 0 && (
+                  <p className="text-sm text-text-secondary">Sem eventos pontuados nesta rodada.</p>
+                )}
+                {items.map(({ key, label }) => {
+                  const value = score.breakdown[key];
+                  return (
+                    <div key={key} className="flex items-center justify-between text-sm">
+                      <span className="text-text-secondary">{label}</span>
+                      <span
+                        className={cn(
+                          'font-semibold tabular-nums',
+                          value > 0
+                            ? 'text-emerald-400'
+                            : value < 0
+                              ? 'text-red-400'
+                              : 'text-text-secondary',
+                        )}
+                      >
+                        {formatSigned(value)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="border-t border-border pt-3">
+                {isCaptain && (
+                  <div className="mb-1.5 flex items-center justify-between text-sm">
+                    <span className="text-text-secondary">Subtotal</span>
+                    <span className="font-semibold tabular-nums text-text-secondary">
+                      {formatSigned(score.breakdown.subtotal ?? 0)}
+                    </span>
+                  </div>
+                )}
+                {isCaptain && (
+                  <div className="mb-1.5 flex items-center justify-between text-sm">
+                    <span className="font-semibold uppercase tracking-wider text-amber-400">
+                      Capitão ×2
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold uppercase tracking-wider text-text-primary">
+                    Total
+                  </span>
+                  <span
+                    className={cn(
+                      'font-display text-3xl leading-none',
+                      isCaptain ? 'text-amber-400' : 'text-emerald-400',
+                    )}
+                  >
+                    {formatPoints(score.points)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
