@@ -18,19 +18,29 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto): Promise<TokenResponseDto> {
-    const existing = await this.prisma.user.findUnique({ where: { username: dto.username } });
-    if (existing) throw new ConflictException('username already taken');
+    const email = dto.email.toLowerCase();
+
+    const existingUsername = await this.prisma.user.findUnique({
+      where: { username: dto.username },
+    });
+    if (existingUsername) throw new ConflictException('username already taken');
+
+    const existingEmail = await this.prisma.user.findUnique({ where: { email } });
+    if (existingEmail) throw new ConflictException('email already in use');
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const user = await this.prisma.user.create({
-      data: { username: dto.username, teamName: dto.teamName, passwordHash },
+      data: { username: dto.username, email, teamName: dto.teamName, passwordHash },
     });
 
     return this.issueTokens(user.id, user.username, user.teamName);
   }
 
   async login(dto: LoginDto): Promise<TokenResponseDto> {
-    const user = await this.prisma.user.findUnique({ where: { username: dto.username } });
+    const isEmail = dto.identifier.includes('@');
+    const user = await this.prisma.user.findUnique({
+      where: isEmail ? { email: dto.identifier.toLowerCase() } : { username: dto.identifier },
+    });
     if (!user) throw new UnauthorizedException('invalid credentials');
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);

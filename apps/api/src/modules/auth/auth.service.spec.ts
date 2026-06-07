@@ -11,6 +11,7 @@ const passwordHash = bcrypt.hashSync('password123', 10);
 const mockUser = {
   id: 'user-1',
   username: 'johndoe',
+  email: 'johndoe@example.com',
   teamName: 'Os Brabos FC',
   passwordHash,
   createdAt: new Date(),
@@ -69,10 +70,14 @@ describe('AuthService', () => {
 
       const result = await service.register({
         username: 'johndoe',
+        email: 'JohnDoe@Example.com',
         teamName: 'Os Brabos FC',
         password: 'password123',
       });
 
+      expect(mockPrisma.user.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ email: 'johndoe@example.com' }),
+      });
       expect(result.accessToken).toBeDefined();
       expect(result.refreshToken).toBeDefined();
       expect(result.user).toMatchObject({
@@ -83,11 +88,27 @@ describe('AuthService', () => {
     });
 
     it('throws ConflictException when username is already taken', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.user.findUnique.mockResolvedValueOnce(mockUser);
 
       await expect(
         service.register({
           username: 'johndoe',
+          email: 'johndoe@example.com',
+          teamName: 'Os Brabos FC',
+          password: 'password123',
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockPrisma.user.create).not.toHaveBeenCalled();
+    });
+
+    it('throws ConflictException when email is already in use', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(mockUser);
+
+      await expect(
+        service.register({
+          username: 'newdoe',
+          email: 'johndoe@example.com',
           teamName: 'Os Brabos FC',
           password: 'password123',
         }),
@@ -98,21 +119,37 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
-    it('returns tokens with valid credentials', async () => {
+    it('returns tokens with valid credentials using username', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
       mockPrisma.refreshToken.create.mockResolvedValue(mockRefreshToken);
 
-      const result = await service.login({ username: 'johndoe', password: 'password123' });
+      const result = await service.login({ identifier: 'johndoe', password: 'password123' });
 
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({ where: { username: 'johndoe' } });
       expect(result.accessToken).toBeDefined();
       expect(result.refreshToken).toBeDefined();
+      expect(result.user.username).toBe('johndoe');
+    });
+
+    it('returns tokens with valid credentials using email', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.refreshToken.create.mockResolvedValue(mockRefreshToken);
+
+      const result = await service.login({
+        identifier: 'JohnDoe@Example.com',
+        password: 'password123',
+      });
+
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: 'johndoe@example.com' },
+      });
       expect(result.user.username).toBe('johndoe');
     });
 
     it('throws UnauthorizedException when user does not exist', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.login({ username: 'nobody', password: 'password' })).rejects.toThrow(
+      await expect(service.login({ identifier: 'nobody', password: 'password' })).rejects.toThrow(
         UnauthorizedException,
       );
     });
@@ -121,7 +158,7 @@ describe('AuthService', () => {
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
 
       await expect(
-        service.login({ username: 'johndoe', password: 'wrongpassword' }),
+        service.login({ identifier: 'johndoe', password: 'wrongpassword' }),
       ).rejects.toThrow(UnauthorizedException);
     });
   });

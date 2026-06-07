@@ -21,7 +21,7 @@ export class AuthController {
   @Post('register')
   @ApiOperation({ summary: 'Register a new user' })
   @ApiResponse({ status: 201, type: TokenResponseDto })
-  @ApiResponse({ status: 409, description: 'Username already taken' })
+  @ApiResponse({ status: 409, description: 'Username already taken or email already in use' })
   register(@Body() dto: RegisterDto): Promise<TokenResponseDto> {
     return this.authService.register(dto);
   }

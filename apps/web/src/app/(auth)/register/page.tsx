@@ -11,6 +11,7 @@ export default function RegisterPage() {
   const register = useAuthStore((s) => s.register);
 
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [teamName, setTeamName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -22,11 +23,15 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      await register(username, teamName, password);
+      await register(username, email, teamName, password);
       router.push('/home');
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
-        setError('Este login já está em uso. Escolha outro.');
+        setError(
+          err.message === 'email already in use'
+            ? 'Este e-mail já está em uso. Escolha outro.'
+            : 'Este login já está em uso. Escolha outro.',
+        );
       } else {
         setError('Erro inesperado. Tente novamente.');
       }
@@ -66,6 +71,25 @@ export default function RegisterPage() {
             onChange={(e) => setUsername(e.target.value)}
             className="w-full rounded border border-border bg-surface-2 px-4 py-3 font-body text-text-primary placeholder-text-secondary outline-none transition-colors focus:border-amber-500"
             placeholder="seu_login"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label
+            htmlFor="email"
+            className="text-xs font-semibold uppercase tracking-wider text-text-secondary"
+          >
+            E-mail
+          </label>
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full rounded border border-border bg-surface-2 px-4 py-3 font-body text-text-primary placeholder-text-secondary outline-none transition-colors focus:border-amber-500"
+            placeholder="seu@email.com"
           />
         </div>
 
