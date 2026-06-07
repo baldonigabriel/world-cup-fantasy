@@ -116,6 +116,15 @@ export default function LeagueLobbyPage() {
               </Link>
             )}
 
+            {isOwner && (
+              <Link
+                href={`/leagues/${id}/rounds`}
+                className="rounded border border-border px-5 py-2 font-body text-sm font-semibold text-text-secondary transition-colors duration-base hover:border-amber-500 hover:text-amber-400"
+              >
+                Admin de Rodadas
+              </Link>
+            )}
+
             {canDraw && (
               <button
                 onClick={() => drawMutation.mutate()}
