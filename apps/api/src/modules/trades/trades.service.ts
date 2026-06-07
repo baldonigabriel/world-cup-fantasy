@@ -14,7 +14,11 @@ import { CreateTradeWindowDto } from './dto/create-trade-window.dto';
 import { FreeAgentFilterDto } from './dto/free-agent-filter.dto';
 import { ProposeTradeDto } from './dto/propose-trade.dto';
 import { SignFreeAgentDto } from './dto/sign-free-agent.dto';
-import { FreeAgentResponseDto, TradeResponseDto } from './dto/trade-response.dto';
+import {
+  FreeAgentResponseDto,
+  RosterPlayerResponseDto,
+  TradeResponseDto,
+} from './dto/trade-response.dto';
 import { TradeWindowResponseDto } from './dto/trade-window-response.dto';
 
 const PLAYER_INCLUDE = {
@@ -407,6 +411,34 @@ export class TradesService {
       include: { country: true },
       orderBy: { name: 'asc' },
       take: 100,
+    });
+
+    return players.map((p) => ({
+      id: p.id,
+      name: p.name,
+      position: p.position as Position,
+      countryCode: p.country.code,
+      countryName: p.country.name,
+      photoUrl: p.photoUrl,
+    }));
+  }
+
+  async listRosterPlayers(
+    leagueId: string,
+    rosterId: string,
+    userId: string,
+  ): Promise<RosterPlayerResponseDto[]> {
+    await this.assertMember(leagueId, userId);
+
+    const roster = await this.prisma.roster.findFirst({
+      where: { id: rosterId, membership: { leagueId } },
+    });
+    if (!roster) throw new NotFoundException('roster not found in this league');
+
+    const players = await this.prisma.player.findMany({
+      where: { rosterPlayers: { some: { leagueId, rosterId } } },
+      include: { country: true },
+      orderBy: { name: 'asc' },
     });
 
     return players.map((p) => ({

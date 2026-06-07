@@ -34,3 +34,12 @@ export class FreeAgentResponseDto {
   @ApiProperty() countryName!: string;
   @ApiProperty({ nullable: true }) photoUrl!: string | null;
 }
+
+export class RosterPlayerResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty({ enum: Position }) position!: Position;
+  @ApiProperty() countryCode!: string;
+  @ApiProperty() countryName!: string;
+  @ApiProperty({ nullable: true }) photoUrl!: string | null;
+}

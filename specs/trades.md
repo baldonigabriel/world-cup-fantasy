@@ -55,6 +55,7 @@ Jogadores não draftados (ou liberados) podem ser contratados dentro da janela.
 - `POST /api/v1/trades/:id/cancel` — cancelar (só o proponente, só se `PENDING`).
 - `POST /api/v1/leagues/:id/signings` — contratar free agent `{ signPlayerId, releasePlayerId }`.
 - `GET /api/v1/leagues/:id/free-agents` — listar disponíveis (filtra por posição/país).
+- `GET /api/v1/leagues/:id/rosters/:rosterId` — retorna os jogadores do roster de um membro da liga (qualquer membro autenticado pode consultar rosters da mesma liga). Necessário para montar o formulário de proposta de troca (selecionar jogador do time adversário da mesma posição).
 
 ## 6. Edge cases
 

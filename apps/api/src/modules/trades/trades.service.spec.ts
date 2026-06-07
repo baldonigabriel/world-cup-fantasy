@@ -666,6 +666,50 @@ describe('TradesService', () => {
     });
   });
 
+  // ── listRosterPlayers ────────────────────────────────────────────────────────
+
+  describe('listRosterPlayers', () => {
+    it('throws NotFoundException when user is not a member', async () => {
+      mockPrisma.membership.findUnique.mockResolvedValue(null);
+      await expect(service.listRosterPlayers(leagueId, receiverRosterId, userId)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws NotFoundException when roster does not belong to the league', async () => {
+      mockPrisma.membership.findUnique.mockResolvedValue(membershipProposer);
+      mockPrisma.roster.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.listRosterPlayers(leagueId, 'roster-other-league', userId),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("returns the roster's players", async () => {
+      mockPrisma.membership.findUnique.mockResolvedValue(membershipProposer);
+      mockPrisma.roster.findFirst.mockResolvedValue({ id: receiverRosterId });
+      mockPrisma.player.findMany.mockResolvedValue([playerMEI_ARG]);
+
+      const result = await service.listRosterPlayers(leagueId, receiverRosterId, userId);
+
+      expect(mockPrisma.player.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { rosterPlayers: { some: { leagueId, rosterId: receiverRosterId } } },
+        }),
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual(
+        expect.objectContaining({
+          id: playerMEI_ARG.id,
+          name: playerMEI_ARG.name,
+          position: playerMEI_ARG.position,
+          countryCode: playerMEI_ARG.country.code,
+          countryName: playerMEI_ARG.country.name,
+        }),
+      );
+    });
+  });
+
   // ── expirePendingTrades (A1) ─────────────────────────────────────────────────
 
   describe('expirePendingTrades', () => {

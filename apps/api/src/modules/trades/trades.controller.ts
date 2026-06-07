@@ -7,20 +7,16 @@ import {
   Param,
   Post,
   Query,
-  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateTradeWindowDto } from './dto/create-trade-window.dto';
 import { FreeAgentFilterDto } from './dto/free-agent-filter.dto';
 import { ProposeTradeDto } from './dto/propose-trade.dto';
 import { SignFreeAgentDto } from './dto/sign-free-agent.dto';
 import { TradesService } from './trades.service';
-
-interface AuthRequest extends Request {
-  user: { sub: string };
-}
 
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
@@ -35,17 +31,17 @@ export class TradesController {
   @Post('leagues/:leagueId/trade-windows')
   createTradeWindow(
     @Param('leagueId') leagueId: string,
-    @Req() req: AuthRequest,
+    @CurrentUser() user: CurrentUserPayload,
     @Body() dto: CreateTradeWindowDto,
   ) {
-    return this.tradesService.createTradeWindow(leagueId, req.user.sub, dto);
+    return this.tradesService.createTradeWindow(leagueId, user.id, dto);
   }
 
   @ApiTags('trade-windows')
   @ApiOperation({ summary: 'List trade windows for a league' })
   @Get('leagues/:leagueId/trade-windows')
-  listTradeWindows(@Param('leagueId') leagueId: string, @Req() req: AuthRequest) {
-    return this.tradesService.listTradeWindows(leagueId, req.user.sub);
+  listTradeWindows(@Param('leagueId') leagueId: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.tradesService.listTradeWindows(leagueId, user.id);
   }
 
   // ── Trades ────────────────────────────────────────────────────────────────────
@@ -55,41 +51,52 @@ export class TradesController {
   @Post('leagues/:leagueId/trades')
   proposeTrade(
     @Param('leagueId') leagueId: string,
-    @Req() req: AuthRequest,
+    @CurrentUser() user: CurrentUserPayload,
     @Body() dto: ProposeTradeDto,
   ) {
-    return this.tradesService.proposeTrade(leagueId, req.user.sub, dto);
+    return this.tradesService.proposeTrade(leagueId, user.id, dto);
   }
 
   @ApiTags('trades')
   @ApiOperation({ summary: 'List trades (proposer or receiver)' })
   @Get('leagues/:leagueId/trades')
-  listTrades(@Param('leagueId') leagueId: string, @Req() req: AuthRequest) {
-    return this.tradesService.listTrades(leagueId, req.user.sub);
+  listTrades(@Param('leagueId') leagueId: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.tradesService.listTrades(leagueId, user.id);
+  }
+
+  @ApiTags('trades')
+  @ApiOperation({ summary: "List a roster's players (any league member can view)" })
+  @Get('leagues/:leagueId/rosters/:rosterId')
+  listRosterPlayers(
+    @Param('leagueId') leagueId: string,
+    @Param('rosterId') rosterId: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.tradesService.listRosterPlayers(leagueId, rosterId, user.id);
   }
 
   @ApiTags('trades')
   @ApiOperation({ summary: 'Accept a pending trade (receiver only, revalidates everything)' })
   @HttpCode(HttpStatus.OK)
   @Post('trades/:tradeId/accept')
-  acceptTrade(@Param('tradeId') tradeId: string, @Req() req: AuthRequest) {
-    return this.tradesService.acceptTrade(tradeId, req.user.sub);
+  acceptTrade(@Param('tradeId') tradeId: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.tradesService.acceptTrade(tradeId, user.id);
   }
 
   @ApiTags('trades')
   @ApiOperation({ summary: 'Reject a pending trade (receiver only)' })
   @HttpCode(HttpStatus.OK)
   @Post('trades/:tradeId/reject')
-  rejectTrade(@Param('tradeId') tradeId: string, @Req() req: AuthRequest) {
-    return this.tradesService.rejectTrade(tradeId, req.user.sub);
+  rejectTrade(@Param('tradeId') tradeId: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.tradesService.rejectTrade(tradeId, user.id);
   }
 
   @ApiTags('trades')
   @ApiOperation({ summary: 'Cancel a pending trade (proposer only)' })
   @HttpCode(HttpStatus.OK)
   @Post('trades/:tradeId/cancel')
-  cancelTrade(@Param('tradeId') tradeId: string, @Req() req: AuthRequest) {
-    return this.tradesService.cancelTrade(tradeId, req.user.sub);
+  cancelTrade(@Param('tradeId') tradeId: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.tradesService.cancelTrade(tradeId, user.id);
   }
 
   // ── Signings ──────────────────────────────────────────────────────────────────
@@ -100,10 +107,10 @@ export class TradesController {
   @Post('leagues/:leagueId/signings')
   signFreeAgent(
     @Param('leagueId') leagueId: string,
-    @Req() req: AuthRequest,
+    @CurrentUser() user: CurrentUserPayload,
     @Body() dto: SignFreeAgentDto,
   ) {
-    return this.tradesService.signFreeAgent(leagueId, req.user.sub, dto);
+    return this.tradesService.signFreeAgent(leagueId, user.id, dto);
   }
 
   @ApiTags('signings')
@@ -113,9 +120,9 @@ export class TradesController {
   @Get('leagues/:leagueId/free-agents')
   listFreeAgents(
     @Param('leagueId') leagueId: string,
-    @Req() req: AuthRequest,
+    @CurrentUser() user: CurrentUserPayload,
     @Query() filter: FreeAgentFilterDto,
   ) {
-    return this.tradesService.listFreeAgents(leagueId, req.user.sub, filter);
+    return this.tradesService.listFreeAgents(leagueId, user.id, filter);
   }
 }
