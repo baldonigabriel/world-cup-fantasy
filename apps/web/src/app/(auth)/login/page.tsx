@@ -10,7 +10,7 @@ export default function LoginPage() {
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
 
-  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,7 +21,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await login(username, password);
+      await login(identifier, password);
       router.push('/home');
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
@@ -49,20 +49,20 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1">
           <label
-            htmlFor="username"
+            htmlFor="identifier"
             className="text-xs font-semibold uppercase tracking-wider text-text-secondary"
           >
-            Login
+            Login ou e-mail
           </label>
           <input
-            id="username"
+            id="identifier"
             type="text"
             autoComplete="username"
             required
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
             className="w-full rounded border border-border bg-surface-2 px-4 py-3 font-body text-text-primary placeholder-text-secondary outline-none transition-colors focus:border-amber-500"
-            placeholder="seu_login"
+            placeholder="seu_login ou seu@email.com"
           />
         </div>
 

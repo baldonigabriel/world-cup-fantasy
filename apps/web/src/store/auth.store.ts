@@ -18,8 +18,8 @@ interface AuthState {
   user: AuthUser | null;
   accessToken: string | null;
   refreshToken: string | null;
-  login: (username: string, password: string) => Promise<void>;
-  register: (username: string, teamName: string, password: string) => Promise<void>;
+  login: (identifier: string, password: string) => Promise<void>;
+  register: (username: string, email: string, teamName: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshTokens: () => Promise<void>;
 }
@@ -31,14 +31,15 @@ export const useAuthStore = create<AuthState>()(
       accessToken: null,
       refreshToken: null,
 
-      async login(username, password) {
-        const data = await api.post<TokenResponse>('/auth/login', { username, password });
+      async login(identifier, password) {
+        const data = await api.post<TokenResponse>('/auth/login', { identifier, password });
         set({ user: data.user, accessToken: data.accessToken, refreshToken: data.refreshToken });
       },
 
-      async register(username, teamName, password) {
+      async register(username, email, teamName, password) {
         const data = await api.post<TokenResponse>('/auth/register', {
           username,
+          email,
           teamName,
           password,
         });
